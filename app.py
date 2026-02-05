@@ -5,7 +5,7 @@ import streamlit as st
 # -----------------------------------------------------------------------------
 st.set_page_config(page_title="Zone Explorer", layout="wide")
 
-# Hier definiëren we alle tekst en kleuren uit jouw screenshots in een dictionary
+# Alle data voor de 5 zones (titels, teksten, kleuren)
 zones_data = {
     "Zone 1": {
         "title": "ZONE 1: HERSTEL",
@@ -70,71 +70,93 @@ def set_zone(zone_name):
 
 # -----------------------------------------------------------------------------
 # 3. STYLING (CSS)
+# Dit zorgt ervoor dat het eruit ziet als de screenshots
 # -----------------------------------------------------------------------------
-# Dit stukje CSS zorgt ervoor dat het eruit ziet als de screenshots (kaarten, schaduwen, kleuren)
 st.markdown("""
 <style>
-    /* Algemene styling */
-    .block-container {padding-top: 2rem;}
+    /* Verwijder standaard padding van Streamlit */
+    .block-container {padding-top: 2rem; padding-bottom: 5rem;}
     
     /* De zone kaart links */
     .zone-card {
-        padding: 30px;
-        border-radius: 20px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        padding: 40px;
+        border-radius: 30px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.08);
         height: 100%;
         color: #1f2937;
     }
     .zone-title {
         font-family: 'Helvetica', sans-serif;
-        font-weight: 800;
-        font-size: 40px;
+        font-weight: 900;
+        font-size: 48px;
         font-style: italic;
         margin-bottom: 5px;
+        line-height: 1.1;
     }
     .zone-subtitle {
         font-weight: 700;
-        font-size: 20px;
+        font-size: 22px;
         color: #6b7280;
-        margin-bottom: 20px;
+        margin-bottom: 25px;
+    }
+    .zone-desc {
+        font-size: 1.15rem;
+        line-height: 1.7;
+        margin-bottom: 30px;
     }
     .valkuil-box {
-        background-color: rgba(0,0,0,0.05);
-        border: 1px solid rgba(0,0,0,0.1);
-        padding: 15px;
-        border-radius: 10px;
-        margin-top: 30px;
-        font-size: 0.9rem;
+        background-color: rgba(0,0,0,0.06);
+        border: 2px solid rgba(0,0,0,0.08);
+        padding: 20px;
+        border-radius: 15px;
+        font-size: 1rem;
         font-style: italic;
         font-weight: 600;
+        color: #374151;
     }
     
     /* De rechterkant (Prikkels & Pro Tip) */
     .info-box {
         background-color: white;
         padding: 30px;
-        border-radius: 20px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-        margin-bottom: 20px;
+        border-radius: 25px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        margin-bottom: 25px;
+        border: 1px solid #f3f4f6;
     }
     .pro-tip-box {
         background-color: #111827; /* Donkerblauw/Zwart */
         color: white;
         padding: 30px;
-        border-radius: 20px;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        border-radius: 25px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.25);
     }
-    .stButton button {
-        border-radius: 20px;
-        border: 1px solid #e5e7eb;
+    
+    /* Styling voor de knoppen */
+    div.stButton > button {
+        border-radius: 50px;
+        border: 2px solid #e5e7eb;
         background-color: white;
-        font-weight: bold;
-        width: 100%;
+        color: #374151;
+        font-weight: 800;
+        font-size: 14px;
+        letter-spacing: 1px;
+        padding: 12px 24px;
+        transition: all 0.3s ease;
     }
-    .stButton button:hover {
-        border-color: #3b82f6;
-        color: #3b82f6;
+    /* Styling voor de actieve knop en hover */
+    div.stButton > button:hover {
+        border-color: #111827;
+        color: #111827;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }
+    div.stButton > button:active {
+         background-color: #111827;
+         color: white;
+         border-color: #111827;
+    }
+    
 </style>
 """, unsafe_allow_html=True)
 
@@ -142,38 +164,40 @@ st.markdown("""
 # 4. DE LAYOUT
 # -----------------------------------------------------------------------------
 
-st.markdown("<h1 style='text-align: center; color: #374151;'>ONTDEK ELKE ZONE</h1>", unsafe_allow_html=True)
-st.write("") # Spacer
+st.markdown("<h2 style='text-align: center; color: #6b7280; letter-spacing: 2px; font-weight: 800; margin-bottom: 40px;'>ONTDEK ELKE ZONE</h2>", unsafe_allow_html=True)
 
 # --- De Interactieve Knoppen ---
-cols = st.columns(5)
+# We gebruiken 7 kolommen om de 5 knoppen in het midden te centreren
+col_spacer1, col1, col2, col3, col4, col5, col_spacer2 = st.columns([2, 3, 3, 3, 3, 3, 2])
+cols = [col1, col2, col3, col4, col5]
 zones_list = list(zones_data.keys())
 
 for i, zone_name in enumerate(zones_list):
     with cols[i]:
-        # Als de knop wordt ingedrukt, update de session state
-        if st.button(zone_name.upper(), use_container_width=True):
+        # We voegen een unieke key toe om de state goed te beheren
+        if st.button(zone_name.upper(), key=f"btn_{i}", use_container_width=True):
             set_zone(zone_name)
-            st.rerun()
+            # Geen st.rerun() nodig, de knop klik herlaadt de pagina al
 
-st.write("---") # Scheidingslijn
+st.write("") # Extra ruimte onder de knoppen
+st.write("")
 
 # Haal de data op voor de geselecteerde zone
 current_data = zones_data[st.session_state.selected_zone]
 
 # --- De Content Sectie ---
-col_left, col_right = st.columns([1, 1])
+col_left, col_right = st.columns([1.4, 1], gap="large") # Linker kolom iets breder
 
 with col_left:
-    # We gebruiken f-strings om de CSS kleuren dynamisch in te vullen
+    # Dit is de sectie waar de fout zat. Dit is nu gecorrigeerd.
     st.markdown(f"""
-    <div class="zone-card" style="background-color: {current_data['color_bg']}; border: 2px solid {current_data['color_border']};">
+    <div class="zone-card" style="background-color: {current_data['color_bg']}; border: 3px solid {current_data['color_border']};">
         <div class="zone-title" style="color: {current_data['color_accent']}">{current_data['title']}</div>
         <div class="zone-subtitle">{current_data['subtitle']}</div>
-        <p style="font-size: 1.1rem; line-height: 1.6;">{current_data['desc']}</p>
+        <p class="zone-desc">{current_data['desc']}</p>
         
         <div class="valkuil-box">
-            BELANGRIJKE VALKUIL:<br>
+            <span style="color: #6b7280; font-size: 0.8rem; font-weight: 800; letter-spacing: 0.5px; display: block; margin-bottom: 10px;">BELANGRIJKE VALKUIL:</span>
             "{current_data['valkuil']}"
         </div>
     </div>
@@ -181,12 +205,12 @@ with col_left:
 
 with col_right:
     # Trainingsprikkels Box
-    prikkels_html = "".join([f"<li style='margin-bottom: 10px;'><b>{p}</b></li>" for p in current_data['prikkels']])
+    prikkels_html = "".join([f"<li style='margin-bottom: 12px; font-weight: 700;'>{p}</li>" for p in current_data['prikkels']])
     
     st.markdown(f"""
     <div class="info-box">
-        <h5 style="color: #9ca3af; letter-spacing: 1px; font-size: 0.8rem; font-weight: 800; margin-bottom: 20px;">TRAININGSPRIKKELS</h5>
-        <ul style="list-style-type: disc; padding-left: 20px; color: #1f2937;">
+        <h5 style="color: #9ca3af; letter-spacing: 2px; font-size: 0.75rem; font-weight: 800; margin-bottom: 25px;">TRAININGSPRIKKELS</h5>
+        <ul style="list-style-type: disc; padding-left: 20px; color: #1f2937; font-size: 1.05rem;">
             {prikkels_html}
         </ul>
     </div>
@@ -195,8 +219,8 @@ with col_right:
     # Context Pro Tip Box (Donker)
     st.markdown("""
     <div class="pro-tip-box">
-        <h5 style="color: #6b7280; letter-spacing: 1px; font-size: 0.8rem; font-weight: 800; margin-bottom: 15px;">CONTEXT PRO TIP</h5>
-        <p style="font-style: italic; font-size: 1rem; line-height: 1.5;">
+        <h5 style="color: #6b7280; letter-spacing: 2px; font-size: 0.75rem; font-weight: 800; margin-bottom: 20px;">CONTEXT PRO TIP</h5>
+        <p style="font-style: italic; font-size: 1.1rem; line-height: 1.6; font-weight: 500;">
         "Gebruik hartslag als controle, maar laat wattage leidend zijn voor de meest constante prikkel in deze zone."
         </p>
     </div>
