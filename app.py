@@ -1,332 +1,388 @@
-import streamlit as st
-import matplotlib.pyplot as plt
-import numpy as np
+import React, { useState, useMemo, useEffect } from 'react';
+import { 
+  AreaChart, Area, XAxis, YAxis, 
+  CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Label 
+} from 'recharts';
+import { 
+  Zap, 
+  Activity, 
+  Target, 
+  AlertTriangle, 
+  Info, 
+  ChevronRight,
+  TrendingUp,
+  Wind,
+  Layers,
+  BookOpen,
+  Bike, // Gecorrigeerd: 'Bike' in plaats van 'Bicycle'
+  CheckCircle2
+} from 'lucide-react';
 
-# -----------------------------------------------------------------------------
-# 1. CONFIGURATIE & STYLING
-# -----------------------------------------------------------------------------
-st.set_page_config(page_title="Zone Explorer", layout="wide")
+const App = () => {
+  const [modelType, setModelType] = useState('5-Zone Model');
+  const [selectedZone, setSelectedZone] = useState('Zone 1');
 
-st.markdown("""
-<style>
-    /* Algemene styling */
-    .main {background-color: #fdfdfd;}
-    h1, h2, h3 {font-family: 'Helvetica', sans-serif; font-weight: 900; color: #111827;}
-    
-    /* Header */
-    .header-title {font-size: 3rem; font-weight: 900; color: #111827; text-align: center; margin-bottom: 5px;}
-    .header-accent {color: #ef4444; font-style: italic;}
-    .header-sub {text-align: center; color: #6b7280; font-size: 1.1rem; margin-bottom: 40px;}
-    
-    /* Tabs/Radio Buttons */
-    div.stRadio > div {display: flex; justify-content: center; gap: 20px;}
-    div.stRadio > div > label {
-        background-color: #f3f4f6; padding: 10px 25px; border-radius: 10px; 
-        font-weight: bold; border: 2px solid transparent; cursor: pointer; transition: 0.3s;
-    }
-    div.stRadio > div > label:hover {background-color: #e5e7eb;}
-    
-    /* Kaarten en Boxen */
-    .zone-card {
-        padding: 30px; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.06);
-        height: 100%; color: #1f2937;
-    }
-    .valkuil-box {
-        background-color: rgba(0,0,0,0.04); border-left: 4px solid rgba(0,0,0,0.2);
-        padding: 15px; margin-top: 25px; font-style: italic; font-size: 0.95rem;
-    }
-    .info-box {
-        background-color: white; padding: 25px; border-radius: 20px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.06); margin-bottom: 20px; border: 1px solid #f3f4f6;
-    }
-    
-    /* Knoppen */
-    div.stButton > button {
-        border-radius: 50px; border: 1px solid #e5e7eb; background-color: white;
-        color: #374151; font-weight: 800; width: 100%; transition: all 0.2s;
-    }
-    div.stButton > button:hover {
-        border-color: #111827; color: #111827; transform: translateY(-2px);
-    }
-    
-    /* Lijstjes styling */
-    ul { margin-bottom: 0; }
-    li { margin-bottom: 5px; }
-</style>
-""", unsafe_allow_html=True)
+  // Fysiologische ankers (gekalibreerd op % intensiteit/wattage)
+  const vt1 = 48; // Eerste ventilatoire omslag
+  const vt2 = 78; // Tweede ventilatoire omslag
 
-# -----------------------------------------------------------------------------
-# 2. GRAFIEK LOGICA (Gebaseerd op Slide 1, 2 & 3)
-# -----------------------------------------------------------------------------
-def draw_lactate_curve(model_type):
-    # Simulatie van een lactaatcurve
-    x = np.linspace(0, 100, 500)
-    y = 0.8 + 0.00005 * np.power(x, 2.9) 
-    
-    fig, ax = plt.subplots(figsize=(10, 5))
-    
-    # Minimalistische stijl
-    for spine in ['top', 'right', 'left', 'bottom']:
-        ax.spines[spine].set_visible(False)
-    ax.set_xticks([])
-    ax.set_yticks([])
-    
-    # De Curve
-    ax.plot(x, y, color='#1f2937', linewidth=4, zorder=10)
-    
-    # ANKERS DEFINIËREN (Uit Slide 3: VT1 en VT2 zijn de vaste ankers)
-    # VT1 = Grens tussen Z2 en Z3 (in 5-zone model)
-    # VT2 = Grens tussen Z4 en Z5 (in 5-zone model)
-    vt1_x = 48 
-    vt2_x = 78
-    ymax = max(y)
-
-    # Verticale lijnen voor VT1 en VT2
-    ax.vlines(x=vt1_x, ymin=0, ymax=ymax, colors='#6b7280', linestyles='dotted', linewidth=1.5)
-    ax.vlines(x=vt2_x, ymin=0, ymax=ymax, colors='#6b7280', linestyles='dotted', linewidth=1.5)
-    
-    # Labels boven de lijnen (Zoals op Slide 1 & 3)
-    ax.text(vt1_x, ymax, " VT1 / LT1 ", ha='center', va='bottom', fontsize=9, fontweight='bold', backgroundcolor='#e5e7eb', color='#374151')
-    ax.text(vt2_x, ymax, " VT2 / LT2 ", ha='center', va='bottom', fontsize=9, fontweight='bold', backgroundcolor='#e5e7eb', color='#374151')
-    
-    # --- VLAKVERDELING ---
-    if model_type == "3-Zone Model":
-        # Slide 1: Zone 1 (Groen) tot VT1, Zone 2 (Oranje) tot VT2, Zone 3 (Rood) na VT2
-        ax.fill_between(x, y, where=(x <= vt1_x), color='#dcfce7', alpha=0.8) # Green
-        ax.text(24, 0.5, "ZONE 1", ha='center', fontsize=10, fontweight='bold', color='#166534')
-        
-        ax.fill_between(x, y, where=((x > vt1_x) & (x <= vt2_x)), color='#ffedd5', alpha=0.8) # Orange
-        ax.text(63, 1.0, "ZONE 2", ha='center', fontsize=10, fontweight='bold', color='#9a3412')
-        
-        ax.fill_between(x, y, where=(x > vt2_x), color='#fee2e2', alpha=0.8) # Red
-        ax.text(89, 2.5, "ZONE 3", ha='center', fontsize=10, fontweight='bold', color='#991b1b')
-        
-    elif model_type == "5-Zone Model":
-        # Slide 2: Z1/Z2 (Groen), Z3 (Geel), Z4 (Oranje), Z5 (Rood)
-        
-        # Z1 (Laag in het groene blok)
-        z1_limit = 28
-        ax.fill_between(x, y, where=(x <= z1_limit), color='#dcfce7', alpha=0.9)
-        ax.text(14, 0.4, "Z1", ha='center', fontsize=9, fontweight='bold', color='#166534')
-        
-        # Z2 (Tot aan VT1 - Slide 5: "Onder of rond VT1")
-        ax.fill_between(x, y, where=((x > z1_limit) & (x <= vt1_x)), color='#bbf7d0', alpha=0.9) # Iets donkerder groen
-        ax.text(38, 0.6, "Z2", ha='center', fontsize=9, fontweight='bold', color='#15803d')
-        
-        # Z3 (Direct na VT1 - Slide 6: "Comfortabel zwaar")
-        z3_limit = 63
-        ax.fill_between(x, y, where=((x > vt1_x) & (x <= z3_limit)), color='#fef9c3', alpha=0.9) # Geel
-        ax.text(55, 0.9, "Z3", ha='center', fontsize=9, fontweight='bold', color='#854d0e')
-        
-        # Z4 (Tot aan VT2 - Slide 7: "Rond VT2")
-        ax.fill_between(x, y, where=((x > z3_limit) & (x <= vt2_x)), color='#ffedd5', alpha=0.9) # Oranje
-        ax.text(70, 1.5, "Z4", ha='center', fontsize=9, fontweight='bold', color='#9a3412')
-        
-        # Z5 (Boven VT2 - Slide 8: "Boven VT2")
-        ax.fill_between(x, y, where=(x > vt2_x), color='#fee2e2', alpha=0.9) # Rood
-        ax.text(90, 3.0, "Z5", ha='center', fontsize=9, fontweight='bold', color='#991b1b')
-
-    # Assen labels (Slide 1)
-    ax.text(0, ymax/2, "Lactate (mmol/L)", rotation=90, va='center', ha='right', color='#9ca3af', fontsize=8)
-    ax.text(50, -0.2, "Power (W)", ha='center', color='#9ca3af', fontsize=8)
-
-    return fig
-
-# -----------------------------------------------------------------------------
-# 3. CONTENT (DATA UIT SLIDE 4-8)
-# -----------------------------------------------------------------------------
-
-# De teksten hieronder zijn letterlijk overgenomen uit je screenshots
-zones_data = {
+  // Data voor het 3-Zone Model (Fysiologische basis)
+  const zones3 = {
     "Zone 1": {
-        "title": "ZONE 1", 
-        "subtitle": "Herstel / Actief Herstel",
-        "desc": "Heel rustig trappen. Praattempo: je kunt moeiteloos blijven praten. Ademhaling blijft laag en stabiel.",
-        "herkenning": "Heel rustig trappen. Praattempo: je kunt moeiteloos praten.",
-        "prikkels": [
-            "Herstelcapaciteit (doorbloeding, 'frisse benen')",
-            "Techniek/cadans zonder metabole stress",
-            "Basisvolume met minimale belasting"
-        ],
-        "doelen": [
-            "Sneller herstellen tussen zware sessies",
-            "Volume toevoegen zonder extra vermoeidheid",
-            "Consistent kunnen trainen week na week"
-        ],
-        "valkuil": "Als je alleen Z1 doet, bouw je weinig prestatieprikkel op—Z1 is ondersteunend, niet 'het hele plan'.",
-        "color_bg": "#dcfce7", "color_border": "#86efac", "color_accent": "#166534"
+      title: "ZONE 1 (LOW)",
+      subtitle: "Onder VT1 - Stabiele Ademhaling",
+      theory: "De basis van elke training. Je ademhaling blijft laag en stabiel. Je gebruikt hoofdzakelijk vetten en de interne belasting is minimaal.",
+      bullets: [
+        "Easy écht easy houden",
+        "Basisdomein voor vetverbranding",
+        "Minimale metabole stress"
+      ],
+      prikkels: ["Capillarisatie", "Mitochondriale efficiëntie", "Basisvolume"],
+      doelen: ["Vetverbranding optimaliseren", "Herstel bevorderen", "Basisconditie"],
+      voorbeelden: ["60-90 min herstelrit", "Warming-up"],
+      takeaway: "Zones = doseren op fysiologie, niet op gevoel alleen.",
+      colorClass: "emerald",
+      sidebarLabel: "LOW"
     },
     "Zone 2": {
-        "title": "ZONE 2", 
-        "subtitle": "Duur / Aerobe Basis",
-        "desc": "Rustig tot steady. Je kunt nog praten, maar je voelt dat je 'werkt'. Dit zit onder of rond VT1: vaak de hoogste intensiteit die je lang kunt stapelen.",
-        "herkenning": "Rustig tot steady. Je kunt nog praten, maar voelt dat je 'werkt'.",
-        "prikkels": [
-            "Aerobe capaciteit (meer 'motor')",
-            "Aerobe efficiëntie: zelfde watt = minder ademdruk/HR",
-            "Vet+koolhydraatmix efficiënt gebruiken (zonder 'vet-only' mythes)"
-        ],
-        "doelen": [
-            "Uithoudingsvermogen (lange ritten, fond, gran fondo)",
-            "Basis voor intensiever werk (Z4-Z5 kun je beter verwerken)",
-            "Betere pacing: minder snel 'opblazen'"
-        ],
-        "valkuil": "Z2 label verschilt per model. VT1 is het anker waarmee je jouw Z2 goed kalibreert.",
-        "color_bg": "#f0fdf4", "color_border": "#bbf7d0", "color_accent": "#15803d"
+      title: "ZONE 2 (TEMPO)",
+      subtitle: "Tussen VT1 & VT2 - Verhoogde Ventilatie",
+      theory: "Het overgangsgebied. Ademarbeid stijgt merkbaar. Je kunt nog praten, maar in kortere zinnen. Herstelkosten lopen op.",
+      bullets: [
+        "Comfortabel zwaar tempo",
+        "Dieselvermogen opbouwen",
+        "Mentale tolerantie voor inspanning"
+      ],
+      prikkels: ["Tempo-uithoudingsvermogen", "Race-gevoel", "Koolhydraat-mix efficiëntie"],
+      doelen: ["Gran fondo tempo", "Lange solo's", "Specifieke race pace"],
+      voorbeelden: ["2x20 min tempo", "Lange klim steady"],
+      takeaway: "VT1 & VT2 zijn je fysiologische ankers voor zones.",
+      colorClass: "orange",
+      sidebarLabel: "THRESH"
     },
     "Zone 3": {
-        "title": "ZONE 3", 
-        "subtitle": "Tempo / Comfortabel Zwaar",
-        "desc": "Stevig. Korte zinnen praten lukt nog nét. Dit is vaak 'comfortabel zwaar': je kunt het best lang volhouden, maar herstelkosten lopen op.",
-        "herkenning": "Stevig. Korte zinnen praten lukt nog nét.",
-        "prikkels": [
-            "Tempo-uithoudingsvermogen (langere stukken stevig rijden)",
-            "Race-gevoel / sportspecifiek tempo",
-            "Mentale tolerantie voor 'stevig doorrijden'"
-        ],
-        "doelen": [
-            "Gran fondo / lange solo's / langere beklimmingen",
-            "Dieselvermogen en langdurig tempo rijden",
-            "Specifieke voorbereiding op race pace"
-        ],
-        "valkuil": "Z3 wordt snel je standaard (groep, wind, heuvels). Te veel Z3 -> minder ruimte voor écht veel Z2 én kwaliteit in Z4-Z5.",
-        "color_bg": "#fefce8", "color_border": "#fde047", "color_accent": "#a16207"
+      title: "ZONE 3 (HIGH)",
+      subtitle: "Boven VT2 - Maximale Ademarbeid",
+      theory: "Boven de tweede ventilatoire drempel. Ademhaling gaat maximaal. 'Steady' rijden wordt onmogelijk; dit is werk met een hoge herstelvraag.",
+      bullets: [
+        "Hard werk hard genoeg maken",
+        "Werken tegen het aerobe plafond",
+        "Maximale ventilatoire druk"
+      ],
+      prikkels: ["VO2max prikkel", "Lactaat tolerantie", "Top-end vermogen"],
+      doelen: ["Klimvermogen (3-8 min)", "Gaten dichten / attacks", "FTP verhogen"],
+      voorbeelden: ["4x4 Norway intervallen", "30/30's"],
+      takeaway: "Meting via ademvariabelen (VE, Rf) is de gouden standaard.",
+      colorClass: "red",
+      sidebarLabel: "HIGH"
+    }
+  };
+
+  // Data voor het 5-Zone Model (Coaching Detail)
+  const zones5 = {
+    "Zone 1": {
+      title: "ZONE 1",
+      subtitle: "Herstel (Ver onder VT1)",
+      theory: "Heel rustig trappen. Praattempo: moeiteloos praten. Ademhaling blijft laag en stabiel.",
+      bullets: ["Easy écht easy houden", "Ondersteunend, niet het hele plan"],
+      prikkels: ["Herstelcapaciteit (doorbloeding)", "Techniek/cadans zonder stress", "Basisvolume"],
+      doelen: ["Sneller herstellen", "Volume zonder vermoeidheid", "Consistentie"],
+      voorbeelden: ["30-60 min herstelrit", "Spin na intervaldag"],
+      takeaway: "Z1 is ondersteunend voor de rest van je plan.",
+      colorClass: "emerald",
+      sidebarLabel: "Z1"
+    },
+    "Zone 2": {
+      title: "ZONE 2",
+      subtitle: "Aerobe Basis (Kalibreren met VT1)",
+      theory: "Rustig tot steady. Je voelt dat je 'werkt'. Zit onder of rond VT1: hoogste intensiteit die je lang kunt stapelen.",
+      bullets: ["Hoogste aerobe efficiëntie", "Zelfde watt = minder ademdruk over tijd"],
+      prikkels: ["Aerobe capaciteit", "Aerobe efficiëntie", "Vet+koolhydraatmix"],
+      doelen: ["Uithoudingsvermogen", "Basis voor intensief werk", "Betere pacing"],
+      voorbeelden: ["90-240 min duurrit", "2-3 uur basis"],
+      takeaway: "VT1 is het anker waarmee je Z2 goed kalibreert.",
+      colorClass: "teal",
+      sidebarLabel: "Z2"
+    },
+    "Zone 3": {
+      title: "ZONE 3",
+      subtitle: "Tempo (Comfortabel Zwaar)",
+      theory: "Stevig. Korte zinnen lukken nét. Je krijgt sneller 'drift' (zelfde watt = hogere ademdruk/HR).",
+      bullets: ["Valkuil: te vaak 'grijs' rijden", "Dieselvermogen trainen"],
+      prikkels: ["Tempo-uithoudingsvermogen", "Race-gevoel", "Mentale tolerantie"],
+      doelen: ["Gran fondo / lange solo's", "Specifieke race pace"],
+      voorbeelden: ["3x15 min tempo", "Lange klim steady"],
+      takeaway: "Voorkom dat Z3 je standaardrit wordt.",
+      colorClass: "amber",
+      sidebarLabel: "Z3"
     },
     "Zone 4": {
-        "title": "ZONE 4", 
-        "subtitle": "Threshold",
-        "desc": "Hard, je kunt nauwelijks praten. Dit zit rond je VT2-anker: ademdruk is hoog en het voelt alsof je het tempo 'moet managen'.",
-        "herkenning": "Hard, je kunt nauwelijks praten. Rond VT2-anker.",
-        "prikkels": [
-            "Drempelvermogen verhogen (hoog, lang vol te houden)",
-            "Tolerantie voor hoge ventilatie/ademdruk",
-            "Pacingvaardigheid rond wedstrijdintensiteit (TT/klim)"
-        ],
-        "doelen": [
-            "Sneller worden op 20-60 min inspanningen",
-            "Tijdrit / lange klim / breakaway-werk",
-            "Hogere 'stabiele' watts voor race-onderdelen"
-        ],
-        "valkuil": "HR kan achterlopen bij korte stappen (HR-lag); daarom is watt + ademrespons vaak betrouwbaarder om dit domein te plaatsen.",
-        "color_bg": "#fff7ed", "color_border": "#fdba74", "color_accent": "#c2410c"
+      title: "ZONE 4",
+      subtitle: "Threshold (Rond VT2)",
+      theory: "Hard, nauwelijks praten. Ademdruk is hoog, tempo 'managen'. Duidelijke herstelvraag.",
+      bullets: ["Drempelvermogen verhogen", "Tolerantie voor hoge ventilatie"],
+      prikkels: ["Drempelvermogen", "Pacingvaardigheid", "Ademrespons training"],
+      doelen: ["Sneller op 20-60 min inspanningen", "Tijdrit / breakaway"],
+      voorbeelden: ["3x10 min threshold", "Over/unders"],
+      takeaway: "Wattage + ademrespons is hier betrouwbaarder dan HR.",
+      colorClass: "orange",
+      sidebarLabel: "Z4"
     },
     "Zone 5": {
-        "title": "ZONE 5", 
-        "subtitle": "VO2 max / Zeer Hard",
-        "desc": "Zeer hard. Praten kan niet. Blokken zijn kort, ventilatie gaat maximaal. Dit is duidelijk boven VT2 en bedoeld om tijd op hoog aeroob vermogen te maken.",
-        "herkenning": "Zeer hard. Praten kan niet. Duidelijk boven VT2.",
-        "prikkels": [
-            "VO2max-prikkel (centrale + perifere belasting)",
-            "Hoog vermogen herhalen onder vermoeidheid",
-            "Verbetering van 'top-end' en klim-aanzetten"
-        ],
-        "doelen": [
-            "Klimvermogen op 3-8 min verbeteren",
-            "Sneller herstellen tussen harde inspanningen",
-            "Race-situaties: gaten dichten, attacks, harde passages"
-        ],
-        "valkuil": "Z5 vraagt veel herstel. Werkt het best met veel Z1-Z2 eromheen ('best of both worlds').",
-        "color_bg": "#fef2f2", "color_border": "#fca5a5", "color_accent": "#b91c1c"
+      title: "ZONE 5",
+      subtitle: "VO2 Max (Boven VT2)",
+      theory: "Zeer hard. Praten onmogelijk. Ventilatie gaat maximaal. Tijd doorbrengen tegen aerobe plafond.",
+      bullets: ["Kort & scherp", "Vraagt veel herstel"],
+      prikkels: ["VO2max-prikkel", "Top-end verbetering", "Herstel tussen pieken"],
+      doelen: ["Klimvermogen verbeteren", "Attacks / gaten dichten"],
+      voorbeelden: ["4x4 Norway", "5x3 min intervallen"],
+      takeaway: "Werkt best met veel Z1-Z2 eromheen.",
+      colorClass: "red",
+      sidebarLabel: "Z5"
     }
-}
+  };
 
-# -----------------------------------------------------------------------------
-# 4. PAGINA OPBOUW
-# -----------------------------------------------------------------------------
+  useEffect(() => { setSelectedZone("Zone 1"); }, [modelType]);
 
-# Header
-st.markdown("""
-    <div class='header-title'>Master je <span class='header-accent'>Intensiteit.</span></div>
-    <div class='header-sub'>Fysiologische ankers & zones (gebaseerd op VT1 & VT2)</div>
-""", unsafe_allow_html=True)
+  const activeZones = modelType === '3-Zone Model' ? zones3 : zones5;
+  const curr = activeZones[selectedZone] || activeZones["Zone 1"];
 
-# Model Switcher
-col_spacer_l, col_select, col_spacer_r = st.columns([1, 2, 1])
-with col_select:
-    model_choice = st.radio("", ["3-Zone Model", "5-Zone Model"], horizontal=True, label_visibility="collapsed")
+  // Curve die Ventilatie (VE) simuleert (stijgt exponentieel bij drempels)
+  const chartData = useMemo(() => {
+    return Array.from({ length: 101 }, (_, i) => ({
+      x: i,
+      ve: 15 + 0.001 * Math.pow(i, 2.5) // Basisventilatie + exponentiële stijging
+    }));
+  }, []);
 
-st.write("")
+  const getColor = (cls) => {
+    const colors = {
+      emerald: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', accent: 'bg-emerald-600', fill: '#dcfce7' },
+      teal: { bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-700', accent: 'bg-teal-600', fill: '#ccfbf1' },
+      amber: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', accent: 'bg-amber-600', fill: '#fef9c3' },
+      orange: { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', accent: 'bg-orange-600', fill: '#ffedd5' },
+      red: { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700', accent: 'bg-red-600', fill: '#fee2e2' }
+    };
+    return colors[cls] || colors.emerald;
+  };
 
-# BOVENKANT: GRAFIEK + LEGEND
-c_graph, c_info = st.columns([1.6, 1], gap="medium")
+  const currentColors = getColor(curr.colorClass);
 
-with c_graph:
-    st.pyplot(draw_lactate_curve(model_choice))
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-4 md:p-8">
+      <header className="max-w-6xl mx-auto mb-10 text-center">
+        <h1 className="text-4xl md:text-6xl font-black tracking-tight mb-2">
+          Master je <span className="text-red-600 italic">Intensiteit.</span>
+        </h1>
+        <p className="text-slate-500 text-lg font-medium">Focus op ventilatoire ankers VT1 & VT2 als leidraad.</p>
 
-with c_info:
-    st.markdown(f"### {model_choice}")
-    if model_choice == "3-Zone Model":
-        st.write("Het fysiologische basismodel (Slide 1).")
-        st.info("**Zone 1 (Groen):** Onder VT1. Rustig & Duur.")
-        st.warning("**Zone 2 (Oranje):** Tussen VT1 en VT2. Tempo & Threshold.")
-        st.error("**Zone 3 (Rood):** Boven VT2. High Intensity.")
-    else:
-        st.write("Coachingdetail voor specifiekere prikkels (Slide 2).")
-        st.success("**Z1 & Z2:** Onder VT1 (Basis)")
-        st.warning("**Z3 & Z4:** Tussen VT1 en VT2 (Tempo/Drempel)")
-        st.error("**Z5:** Boven VT2 (VO2 Max)")
-    
-    st.markdown("""
-    <div style="background-color: #111827; color: white; padding: 20px; border-radius: 15px; margin-top: 20px;">
-        <p style="font-style: italic; font-size: 0.9rem; margin:0;">
-        "VT1 & VT2 zijn je fysiologische drempels voor zones. Zones = doseren op fysiologie, niet op gevoel alleen."
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-st.divider()
-
-# ONDERKANT: INTERACTIEVE ZONE DETAILS
-st.markdown("<h2 style='text-align: center; margin-bottom: 30px;'>ONTDEK ELKE ZONE</h2>", unsafe_allow_html=True)
-
-if 'selected_zone' not in st.session_state:
-    st.session_state.selected_zone = "Zone 1"
-
-def set_zone(z): st.session_state.selected_zone = z
-
-# Knoppenbalk
-cols = st.columns(5)
-keys = list(zones_data.keys())
-for i, col in enumerate(cols):
-    with col:
-        if st.button(keys[i], key=f"btn_{i}", use_container_width=True):
-            set_zone(keys[i])
-
-# Data ophalen
-curr = zones_data[st.session_state.selected_zone]
-
-# Weergave Details
-col_left, col_right = st.columns([1.2, 1], gap="large")
-
-with col_left:
-    st.markdown(f"""
-    <div class="zone-card" style="background-color: {curr['color_bg']}; border: 3px solid {curr['color_border']};">
-        <h2 style="color: {curr['color_accent']}; margin-top:0;">{curr['title']}</h2>
-        <h4 style="color: #6b7280;">{curr['subtitle']}</h4>
-        
-        <p style="font-size: 1.1rem; line-height: 1.6; margin-top: 20px;">
-            <b>Wat is het (herkenning):</b><br>
-            {curr['desc']}
-        </p>
-        
-        <div class="valkuil-box">
-             <strong>⚠️ LET OP / VALKUIL:</strong><br>
-             {curr['valkuil']}
+        <div className="flex justify-center mt-8">
+          <div className="bg-slate-200 p-1 rounded-2xl flex gap-1 shadow-inner">
+            {["3-Zone Model", "5-Zone Model"].map((m) => (
+              <button
+                key={m}
+                onClick={() => setModelType(m)}
+                className={`px-8 py-3 rounded-xl font-black transition-all flex items-center gap-2 ${
+                  modelType === m ? "bg-white text-slate-900 shadow-md scale-105" : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                <Layers size={18} />
+                {m}
+              </button>
+            ))}
+          </div>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
+      </header>
 
-with col_right:
-    # Lijstjes genereren
-    prikkels_html = "".join([f"<li>{item}</li>" for item in curr['prikkels']])
-    doelen_html = "".join([f"<li>{item}</li>" for item in curr['doelen']])
-    
-    st.markdown(f"""
-    <div class="info-box">
-        <strong style="color: #9ca3af; letter-spacing: 1px; font-size: 0.85rem;">TRAININGSPRIKKELS (Slide {4 + keys.index(st.session_state.selected_zone)})</strong>
-        <ul style="padding-left: 20px; margin-top: 5px; margin-bottom: 20px;">{prikkels_html}</ul>
+      <main className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        <strong style="color: #9ca3af; letter-spacing: 1px; font-size: 0.85rem;">DOELEN WAAR DIT BIJ HELPT</strong>
-        <ul style="padding-left: 20px; margin-top: 5px;">{doelen_html}</ul>
+        {/* Grafiek - Ademrespons */}
+        <div className="lg:col-span-8 bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-slate-100">
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+            <h3 className="font-black text-2xl flex items-center gap-2 tracking-tight">
+              <Wind className="text-blue-500" size={24} />
+              Ventilatoire Respons
+            </h3>
+            <div className="flex gap-4 text-[10px] font-black uppercase tracking-widest text-slate-400">
+              <span className="flex items-center gap-2 border border-slate-200 px-3 py-1 rounded-full">VT1: Ademarbeid stijgt</span>
+              <span className="flex items-center gap-2 border border-slate-200 px-3 py-1 rounded-full">VT2: Steady wordt lastig</span>
+            </div>
+          </div>
+          
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -30, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="veGradient" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#dcfce7" />
+                    <stop offset={`${vt1}%`} stopColor="#dcfce7" />
+                    <stop offset={`${vt1}%`} stopColor="#ffedd5" />
+                    <stop offset={`${vt2}%`} stopColor="#ffedd5" />
+                    <stop offset={`${vt2}%`} stopColor="#fee2e2" />
+                    <stop offset="100%" stopColor="#fee2e2" />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="x" hide />
+                <YAxis hide domain={[15, 'auto']} />
+                <Tooltip 
+                  content={({ active, payload }) => active && payload ? (
+                    <div className="bg-slate-900 text-white p-3 shadow-2xl rounded-xl border border-slate-700 text-xs">
+                      <p className="font-black tracking-widest uppercase mb-1">Intensiteit</p>
+                      <p className="text-xl font-black text-blue-400">{payload[0].payload.x}%</p>
+                      <p className="text-slate-400 mt-2 italic">Ademvolume (VE): Hoog</p>
+                    </div>
+                  ) : null}
+                />
+                <Area type="monotone" dataKey="ve" stroke="#1e293b" strokeWidth={5} fill="url(#veGradient)" fillOpacity={0.9} />
+                <ReferenceLine x={vt1} stroke="#94a3b8" strokeDasharray="4 4" strokeWidth={2}>
+                  <Label value="VT1 ANKER" position="top" fill="#64748b" fontWeight="900" fontSize={10} dy={-10} />
+                </ReferenceLine>
+                <ReferenceLine x={vt2} stroke="#94a3b8" strokeDasharray="4 4" strokeWidth={2}>
+                  <Label value="VT2 ANKER" position="top" fill="#64748b" fontWeight="900" fontSize={10} dy={-10} />
+                </ReferenceLine>
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Sidebar - Fysiologische Toelichting */}
+        <div className="lg:col-span-4 space-y-6">
+          <div className="bg-slate-900 text-white p-8 rounded-[2rem] shadow-2xl relative overflow-hidden group">
+            <h2 className="text-2xl font-black italic mb-2 uppercase tracking-tight">Waarom zones?</h2>
+            <p className="text-slate-400 text-sm mb-6 font-medium">Doseren op fysiologie, niet op gevoel.</p>
+            
+            <div className="space-y-4 text-sm relative z-10">
+              <div className="flex gap-3">
+                <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
+                <p>Easy écht easy houden, hard écht hard.</p>
+              </div>
+              <div className="flex gap-3">
+                <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
+                <p>Koppel zones aan Watt + context (Adem/RPE).</p>
+              </div>
+              <div className="flex gap-3 font-bold text-red-400 border-t border-slate-800 pt-4">
+                <Activity size={18} className="shrink-0" />
+                <p>VT1 & VT2 zijn exactere ankers dan % HRmax.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-[2rem] border border-slate-100 italic text-slate-500 text-sm flex gap-3 shadow-sm">
+            <Info size={24} className="text-slate-300 flex-shrink-0" />
+            "Zones werken pas echt als ze gemeten, gekalibreerd en toegepast worden."
+          </div>
+        </div>
+
+        {/* Zone Navigatie */}
+        <div className="lg:col-span-12">
+          <div className={`grid gap-3 ${modelType === '3-Zone Model' ? 'grid-cols-3' : 'grid-cols-2 md:grid-cols-5'}`}>
+            {Object.keys(activeZones).map((zoneKey) => (
+              <button
+                key={zoneKey}
+                onClick={() => setSelectedZone(zoneKey)}
+                className={`p-5 rounded-2xl font-black text-sm transition-all border-2 flex flex-col items-center gap-2 ${
+                  selectedZone === zoneKey 
+                  ? `bg-white ${getColor(activeZones[zoneKey].colorClass).border} shadow-lg scale-105 ring-4 ring-slate-100 z-10` 
+                  : "bg-white border-transparent text-slate-400 hover:bg-slate-50"
+                }`}
+              >
+                <span className={selectedZone === zoneKey ? getColor(activeZones[zoneKey].colorClass).text : ""}>{zoneKey}</span>
+                <div className={`w-8 h-1 rounded-full ${selectedZone === zoneKey ? getColor(activeZones[zoneKey].colorClass).accent : "bg-slate-100"}`}></div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Gedetailleerde Zone Kaart */}
+        <div className="lg:col-span-12 grid grid-cols-1 lg:grid-cols-3 gap-8 mb-16">
+          <div className={`lg:col-span-2 ${currentColors.bg} border-2 ${currentColors.border} rounded-[3rem] p-8 md:p-12 transition-all shadow-sm`}>
+            <div className="flex flex-col md:flex-row md:items-end gap-3 mb-6">
+              <h2 className={`text-6xl font-black italic tracking-tighter ${currentColors.text}`}>
+                {curr.title}
+              </h2>
+            </div>
+            <p className="text-slate-500 font-black uppercase tracking-[0.2em] text-xs mb-8">{curr.subtitle}</p>
+            
+            <div className="mb-10">
+              <h4 className="flex items-center gap-2 font-black text-sm uppercase tracking-widest text-slate-400 mb-3">
+                <BookOpen size={16} /> Theorie
+              </h4>
+              <p className="text-2xl leading-snug text-slate-800 font-bold tracking-tight mb-6">
+                {curr.theory}
+              </p>
+              <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {curr.bullets.map((b, i) => (
+                  <li key={i} className="flex items-center gap-2 text-slate-600 font-semibold italic border-l-2 border-slate-300 pl-3">
+                    {b}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="bg-white/80 backdrop-blur-md p-6 rounded-3xl border border-white shadow-xl flex gap-5 items-center">
+              <div className={`p-3 rounded-2xl ${currentColors.bg}`}>
+                <AlertTriangle className="text-orange-600" size={24} />
+              </div>
+              <div>
+                <span className="block font-black text-[10px] uppercase tracking-[0.2em] text-slate-400 mb-1">Gouden Takeaway</span>
+                <p className="text-slate-700 italic font-bold text-lg">{curr.takeaway}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-blue-100 rounded-xl"><Zap size={20} className="text-blue-600" /></div>
+                <h4 className="font-black uppercase tracking-widest text-xs text-slate-400">Prikkels & Doelen</h4>
+              </div>
+              <div className="space-y-6">
+                <div>
+                  <p className="text-[10px] font-black uppercase text-slate-400 mb-2">Prikkels</p>
+                  <ul className="space-y-2">
+                    {curr.prikkels.map((p, i) => (
+                      <li key={i} className="flex items-center gap-3 font-bold text-slate-700">
+                        <div className={`w-1.5 h-1.5 rounded-full ${currentColors.accent}`}></div> {p}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase text-slate-400 mb-2">Helpt bij</p>
+                  <ul className="space-y-2">
+                    {curr.doelen.map((d, i) => (
+                      <li key={i} className="flex items-center gap-3 font-bold text-slate-700">
+                        <div className={`w-1.5 h-1.5 rounded-full ${currentColors.accent}`}></div> {d}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-slate-900 text-white p-8 rounded-[2.5rem] shadow-lg relative overflow-hidden">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-slate-800 rounded-xl"><Bike size={20} className="text-red-500" /></div>
+                <h4 className="font-black uppercase tracking-widest text-xs text-slate-500">Praktijk Voorbeelden</h4>
+              </div>
+              <ul className="space-y-4">
+                {curr.voorbeelden.map((v, i) => (
+                  <li key={i} className="flex items-center gap-4 font-black text-slate-300 italic">
+                    <ChevronRight size={18} className="text-red-500" /> {v}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <footer className="max-w-6xl mx-auto text-center py-16 border-t border-slate-200">
+        <p className="text-slate-300 text-xs font-black uppercase tracking-[0.5em]">VT1 & VT2 — De Ankers van jouw Succes</p>
+      </footer>
     </div>
-    """, unsafe_allow_html=True)
+  );
+};
+
+export default App;
