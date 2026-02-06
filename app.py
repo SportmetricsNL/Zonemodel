@@ -1,4 +1,3 @@
-
 import base64
 from pathlib import Path
 
@@ -39,7 +38,8 @@ HTML_PAGE = r"""
       --deep: #0f4c5c;
       --sun: #f4b66a;
       --peach: #f1c9a9;
-      --card: rgba(255, 255, 255, 0.82);
+      --card: #fffdf6;
+      --card-strong: #ffffff;
       --border: rgba(30, 42, 47, 0.12);
       --shadow: 0 18px 50px rgba(15, 76, 92, 0.18);
     }
@@ -86,7 +86,7 @@ HTML_PAGE = r"""
       display: flex;
       flex-direction: column;
       gap: 10px;
-      background: rgba(255, 255, 255, 0.7);
+      background: var(--card-strong);
       border: 1px solid var(--border);
       border-radius: 16px;
       padding: 14px 14px;
@@ -154,7 +154,7 @@ HTML_PAGE = r"""
 
     .hero {
       padding: 54px 44px;
-      background: linear-gradient(140deg, rgba(255, 255, 255, 0.92), rgba(241, 201, 169, 0.55));
+      background: linear-gradient(140deg, #ffffff, #f6e7d6);
     }
     .hero h1 {
       font-family: "Space Grotesk", sans-serif;
@@ -176,7 +176,7 @@ HTML_PAGE = r"""
     }
     .hero .stat {
       padding: 16px 18px;
-      background: rgba(255, 255, 255, 0.7);
+      background: var(--card-strong);
       border-radius: 16px;
       border: 1px solid var(--border);
       font-family: "Space Grotesk", sans-serif;
@@ -205,7 +205,7 @@ HTML_PAGE = r"""
       gap: 18px;
     }
     .card {
-      background: rgba(255, 255, 255, 0.86);
+      background: var(--card-strong);
       border: 1px solid var(--border);
       border-radius: 18px;
       padding: 16px 18px;
@@ -232,8 +232,8 @@ HTML_PAGE = r"""
     .timeline .slot {
       padding: 10px;
       border-radius: 14px;
-      background: rgba(47, 124, 133, 0.08);
-      border: 1px solid rgba(47, 124, 133, 0.16);
+      background: #eef5f4;
+      border: 1px solid rgba(47, 124, 133, 0.22);
       font-family: "Space Grotesk", sans-serif;
       font-size: 0.85rem;
     }
@@ -243,7 +243,7 @@ HTML_PAGE = r"""
       padding: 18px;
       border-radius: 18px;
       border: 1px dashed rgba(47, 124, 133, 0.4);
-      background: rgba(47, 124, 133, 0.06);
+      background: #eef5f4;
     }
     .mixer label {
       font-family: "Space Grotesk", sans-serif;
@@ -260,7 +260,7 @@ HTML_PAGE = r"""
       font-size: 0.85rem;
     }
     .mix-bar {
-      background: rgba(15, 76, 92, 0.08);
+      background: #eef5f4;
       border-radius: 999px;
       overflow: hidden;
       height: 10px;
@@ -279,8 +279,8 @@ HTML_PAGE = r"""
     .fuel-row .mix-bar span { background: linear-gradient(90deg, var(--sun), var(--deep)); }
 
     .callout {
-      background: rgba(244, 182, 106, 0.18);
-      border: 1px solid rgba(244, 182, 106, 0.45);
+      background: #f3e4d2;
+      border: 1px solid #e8cfae;
       padding: 16px 18px;
       border-radius: 18px;
       font-family: "Space Grotesk", sans-serif;
@@ -294,7 +294,7 @@ HTML_PAGE = r"""
     }
     .zone-btn {
       border: 1px solid var(--border);
-      background: rgba(255, 255, 255, 0.9);
+      background: var(--card-strong);
       font-family: "Space Grotesk", sans-serif;
       padding: 8px 14px;
       border-radius: 999px;
