@@ -512,7 +512,7 @@ HTML_PAGE = r"""
       <h2>Caption B (kort, inhoudelijk strak)</h2>
       <p>Elke beweging betaal je met ATP. Omdat je ATP voorraad klein is, moet je lichaam het continu bijmaken via meerdere routes die parallel draaien. Het is een continuum: er zijn geen harde afkappunten, maar wel een verschuiving in dominantie wanneer de ATP vraag per seconde stijgt. PCr levert instant power (kort), anaerobe koolhydraatafbraak levert snel ATP (beperkt houdbaar, hogere systeemstress) en aerobe oxidatie levert duurzame energie uit koolhydraat en vet (vet: enorme voorraad, maar lagere maximale ATP snelheid). Lactaat is geen afval, maar een transportvorm van energie die later weer kan worden geoxideerd (o.a. spier en hart).</p>
       <p>Zone modellen zijn de praktische kaart: rond VT1 stabiel en zuinig, richting VT2/CP nemen drift en herstelkosten toe, en daarboven kom je in een domein zonder echte steady state.</p>
-      <p class="footer">Wil je deze pagina in een specifieke huisstijl of met extra visuals? Zeg het, dan pas ik het aan.</p>
+      <p class="footer"> tot snel bi jsportmetrics.</p>
     </section>
   </main>
 
