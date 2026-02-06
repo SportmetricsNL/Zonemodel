@@ -1,3 +1,6 @@
+import base64
+from pathlib import Path
+
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -5,6 +8,16 @@ st.set_page_config(
     page_title="Energiesystemen en brandstof - SportMetrics",
     layout="wide",
 )
+
+BASE_DIR = Path(__file__).parent
+LOGO_PATH = BASE_DIR / "logo.png"
+if not LOGO_PATH.exists():
+    LOGO_PATH = BASE_DIR / "1.png"
+
+logo_data_uri = ""
+if LOGO_PATH.exists():
+    logo_b64 = base64.b64encode(LOGO_PATH.read_bytes()).decode("utf-8")
+    logo_data_uri = f"data:image/png;base64,{logo_b64}"
 
 HTML_PAGE = r"""
 <!doctype html>
@@ -39,6 +52,19 @@ HTML_PAGE = r"""
       background: radial-gradient(1200px 800px at 10% -10%, #ffffff 0%, var(--sand) 60%, var(--clay) 100%);
     }
 
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image: url('{{LOGO_DATA_URI}}');
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: min(55vmin, 520px);
+      opacity: 0.06;
+      pointer-events: none;
+      z-index: 0;
+    }
+
     .bg-shape {
       position: fixed;
       inset: auto;
@@ -46,7 +72,7 @@ HTML_PAGE = r"""
       height: 480px;
       border-radius: 50%;
       background: radial-gradient(circle at 30% 30%, rgba(47, 124, 133, 0.28), rgba(47, 124, 133, 0.02));
-      z-index: 0;
+      z-index: -1;
     }
     .bg-shape.one { top: -120px; right: -120px; }
     .bg-shape.two { bottom: -200px; left: -140px; background: radial-gradient(circle, rgba(244, 182, 106, 0.35), rgba(244, 182, 106, 0.02)); }
@@ -483,10 +509,10 @@ HTML_PAGE = r"""
     </section>
 
     <section id="samenvatting" data-title="Samenvatting">
-      <h2> Samenvatting</h2>
+      <h2>Caption B (kort, inhoudelijk strak)</h2>
       <p>Elke beweging betaal je met ATP. Omdat je ATP voorraad klein is, moet je lichaam het continu bijmaken via meerdere routes die parallel draaien. Het is een continuum: er zijn geen harde afkappunten, maar wel een verschuiving in dominantie wanneer de ATP vraag per seconde stijgt. PCr levert instant power (kort), anaerobe koolhydraatafbraak levert snel ATP (beperkt houdbaar, hogere systeemstress) en aerobe oxidatie levert duurzame energie uit koolhydraat en vet (vet: enorme voorraad, maar lagere maximale ATP snelheid). Lactaat is geen afval, maar een transportvorm van energie die later weer kan worden geoxideerd (o.a. spier en hart).</p>
       <p>Zone modellen zijn de praktische kaart: rond VT1 stabiel en zuinig, richting VT2/CP nemen drift en herstelkosten toe, en daarboven kom je in een domein zonder echte steady state.</p>
-      <p class="footer">Tot snel bij sportmetrics!.</p>
+      <p class="footer">Wil je deze pagina in een specifieke huisstijl of met extra visuals? Zeg het, dan pas ik het aan.</p>
     </section>
   </main>
 
@@ -587,5 +613,7 @@ HTML_PAGE = r"""
 </body>
 </html>
 """
+
+HTML_PAGE = HTML_PAGE.replace("{{LOGO_DATA_URI}}", logo_data_uri)
 
 components.html(HTML_PAGE, height=4200, scrolling=True)
