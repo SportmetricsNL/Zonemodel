@@ -1,3 +1,4 @@
+
 import base64
 from pathlib import Path
 
@@ -59,8 +60,8 @@ HTML_PAGE = r"""
       background-image: url('{{LOGO_DATA_URI}}');
       background-repeat: repeat;
       background-position: center;
-      background-size: 240px;
-      opacity: 0.05;
+      background-size: 140px;
+      opacity: 0.07;
       mix-blend-mode: multiply;
       pointer-events: none;
       z-index: 2;
