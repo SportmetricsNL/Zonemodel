@@ -297,6 +297,21 @@ HTML_PAGE = r"""
       .mix-row { grid-template-columns: 110px 1fr 48px; }
     }
 
+    @media (max-width: 720px) {
+      main { padding: 40px 16px 90px; }
+      section { padding: 22px; margin: 0 0 48px; }
+      .hero { padding: 30px 22px; }
+      .hero h1 { font-size: clamp(1.8rem, 6vw, 2.4rem); }
+      .hero .hero-grid { grid-template-columns: 1fr; }
+      .timeline { grid-template-columns: 1fr; }
+      .grid-3 { grid-template-columns: 1fr; }
+      .summary { grid-template-columns: 1fr; }
+      .mix-row { grid-template-columns: 1fr; gap: 6px; }
+      .mix-value { text-align: left; }
+      .zone-picker { gap: 8px; }
+      .zone-btn { width: 100%; text-align: center; }
+    }
+
     @media (prefers-reduced-motion: reduce) {
       * { scroll-behavior: auto; }
       section { transition: none; }
@@ -468,10 +483,10 @@ HTML_PAGE = r"""
     </section>
 
     <section id="samenvatting" data-title="Samenvatting">
-      <h2>(Samevatting)</h2>
+      <h2>Caption B (kort, inhoudelijk strak)</h2>
       <p>Elke beweging betaal je met ATP. Omdat je ATP voorraad klein is, moet je lichaam het continu bijmaken via meerdere routes die parallel draaien. Het is een continuum: er zijn geen harde afkappunten, maar wel een verschuiving in dominantie wanneer de ATP vraag per seconde stijgt. PCr levert instant power (kort), anaerobe koolhydraatafbraak levert snel ATP (beperkt houdbaar, hogere systeemstress) en aerobe oxidatie levert duurzame energie uit koolhydraat en vet (vet: enorme voorraad, maar lagere maximale ATP snelheid). Lactaat is geen afval, maar een transportvorm van energie die later weer kan worden geoxideerd (o.a. spier en hart).</p>
       <p>Zone modellen zijn de praktische kaart: rond VT1 stabiel en zuinig, richting VT2/CP nemen drift en herstelkosten toe, en daarboven kom je in een domein zonder echte steady state.</p>
-      <p class="footer">Tot snel bij sportmetrics.</p>
+      <p class="footer">Wil je deze pagina in een specifieke huisstijl of met extra visuals? Zeg het, dan pas ik het aan.</p>
     </section>
   </main>
 
