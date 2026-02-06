@@ -1,360 +1,228 @@
+import os
+import time
 import streamlit as st
-import numpy as np
-import plotly.graph_objects as go
+import google.generativeai as genai
+import pypdf
+import docx
 
-# -----------------------------------------------------------------------------
-# 1. PAGE CONFIG & STYLING
-# -----------------------------------------------------------------------------
-st.set_page_config(page_title="Zone Explorer", layout="wide", page_icon="🚴")
+# --- 0. PAGE & THEME -------------------------------------------------------
+st.set_page_config(
+    page_title="Sportfysioloog AI",
+    page_icon="🚴‍♂️",
+    layout="wide",
+)
 
-# Custom CSS om de 'premium' look van de React app te benaderen
-st.markdown("""
-<style>
-    /* Algemene achtergrond en fonts */
-    .stApp {
-        background-color: #f8fafc;
-        font-family: 'Helvetica Neue', sans-serif;
-    }
-    
-    /* Titels */
-    h1 { color: #0f172a; font-weight: 900 !important; letter-spacing: -1px; }
-    h2 { color: #334155; font-weight: 800 !important; }
-    h3 { color: #475569; font-weight: 700 !important; }
-    
-    /* Cards styling */
-    .custom-card {
-        background-color: white;
-        padding: 2rem;
-        border-radius: 1.5rem;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        border: 1px solid #e2e8f0;
-        margin-bottom: 1rem;
-    }
-    
-    /* Sidebar card style */
-    .theory-card {
-        background-color: #0f172a;
-        color: white;
-        padding: 2rem;
-        border-radius: 1.5rem;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-    }
-    
-    /* Zone buttons simulatie (Streamlit buttons zijn lastig te stylen, we doen het via columns) */
-    div.stButton > button {
-        border-radius: 12px;
-        font-weight: bold;
-        border: 2px solid #e2e8f0;
-        width: 100%;
-        transition: all 0.2s;
-    }
-    div.stButton > button:hover {
-        border-color: #94a3b8;
-        transform: translateY(-2px);
-    }
+# Global look & feel
+st.markdown(
+    r"""
+    <style>
+      :root {
+        --bg: linear-gradient(135deg, #0b1229 0%, #0e1f40 50%, #0b5c6f 100%);
+        --card: rgba(255, 255, 255, 0.06);
+        --glass: rgba(255, 255, 255, 0.08);
+        --border: rgba(255, 255, 255, 0.15);
+        --accent: #3ce37b;
+        --accent-2: #42c5f5;
+        --text: #e8f4ff;
+        --muted: #9fb3d9;
+      }
+      .stApp { background: var(--bg); color: var(--text); }
+      .block-container { padding: 1.5rem 2.5rem 3rem; max-width: 1100px; }
+      .hero {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 1.25rem 1.5rem;
+        box-shadow: 0 15px 50px rgba(0,0,0,0.35);
+      }
+      .hero h1 { margin-bottom: .3rem; color: var(--text); }
+      .hero p { color: var(--muted); font-size: 0.95rem; }
+      .badge { display:inline-block; padding:6px 10px; border-radius:999px; background:var(--glass); color:var(--accent); border:1px solid var(--border); font-size:0.8rem; }
+      .cta-btn button { width:100%; background:linear-gradient(120deg,var(--accent),var(--accent-2)); color:#041021; border:none; }
+      .upload-card, .chat-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 1rem 1.1rem;
+        box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+      }
+      .stExpander, .stFileUploader { color: var(--text); }
+      .stChatMessage { background: transparent; }
+      .stMarkdown p { color: var(--text); }
+      .chat-card .stChatMessage[data-testid="stChatMessage"] div { color: var(--text); }
+      .bike-loader { display:flex; gap:10px; font-size:30px; margin: 6px 0 2px; }
+      .bike-loader div { animation: ride 0.9s ease-in-out infinite; }
+      .bike-loader div:nth-child(2) { animation-delay: .15s; }
+      .bike-loader div:nth-child(3) { animation-delay: .3s; }
+      @keyframes ride { 0% { transform: translateX(0px); } 50% { transform: translateX(12px); } 100% { transform: translateX(0px); } }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
-    /* Highlight box voor Takeaway */
-    .takeaway-box {
-        background-color: #fff7ed;
-        border-left: 4px solid #f97316;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        color: #9a3412;
-        font-style: italic;
-        font-weight: 600;
-        margin-top: 1rem;
-    }
-</style>
-""", unsafe_allow_html=True)
+# --- 1. LOGO ---------------------------------------------------------------
+LOGO_PATH = "1.png"  # pas eventueel aan als je logo-bestand anders heet
 
-# -----------------------------------------------------------------------------
-# 2. DATA & INHOUD (Ventilatoire Focus)
-# -----------------------------------------------------------------------------
+# --- 2. CONFIGURATIE & API ------------------------------------------------
+try:
+    if "GEMINI_API_KEY" in st.secrets:
+        api_key = st.secrets["GEMINI_API_KEY"].strip()
+        genai.configure(api_key=api_key)
+    else:
+        st.error("Geen API Key gevonden.")
+        st.stop()
+except Exception as e:
+    st.error(f"Error: {e}")
+    st.stop()
 
-# Fysiologische ankers (x-as waarden 0-100)
-VT1_X = 48
-VT2_X = 78
+# --- 3. KENNIS LADEN (PDF & DOCX) -----------------------------------------
+@st.cache_resource(show_spinner=False)
+def load_all_knowledge():
+    """Zoekt automatisch naar alle PDF en DOCX bestanden en leest ze."""
+    combined_text = ""
+    for filename in os.listdir("."):
+        try:
+            if filename.lower().endswith(".pdf"):
+                reader = pypdf.PdfReader(filename)
+                for page in reader.pages:
+                    text = page.extract_text()
+                    if text:
+                        combined_text += text + "\n"
+            elif filename.lower().endswith(".docx"):
+                doc = docx.Document(filename)
+                for para in doc.paragraphs:
+                    combined_text += para.text + "\n"
+        except Exception as e:
+            print(f"Kon bestand {filename} niet lezen: {e}")
+    return combined_text
 
-# 3-Zone Model Data
-ZONES_3 = {
-    "Zone 1": {
-        "title": "ZONE 1 (LOW)",
-        "subtitle": "Onder VT1 - Stabiele Ademhaling",
-        "theory": "De basis van elke training. Je ademhaling blijft laag en stabiel. Je gebruikt hoofdzakelijk vetten en de interne belasting is minimaal.",
-        "bullets": [
-            "Easy écht easy houden",
-            "Basisdomein voor vetverbranding",
-            "Minimale metabole stress"
-        ],
-        "prikkels": ["Capillarisatie", "Mitochondriale efficiëntie", "Basisvolume"],
-        "doelen": ["Vetverbranding optimaliseren", "Herstel bevorderen", "Basisconditie"],
-        "voorbeelden": ["60-90 min herstelrit", "Warming-up"],
-        "takeaway": "Zones = doseren op fysiologie, niet op gevoel alleen.",
-        "color": "rgba(16, 185, 129, 0.2)", # Emerald
-        "stroke": "#059669"
-    },
-    "Zone 2": {
-        "title": "ZONE 2 (TEMPO)",
-        "subtitle": "Tussen VT1 & VT2 - Verhoogde Ventilatie",
-        "theory": "Het overgangsgebied. Ademarbeid stijgt merkbaar. Je kunt nog praten, maar in kortere zinnen. Herstelkosten lopen op.",
-        "bullets": [
-            "Comfortabel zwaar tempo",
-            "Dieselvermogen opbouwen",
-            "Mentale tolerantie voor inspanning"
-        ],
-        "prikkels": ["Tempo-uithoudingsvermogen", "Race-gevoel", "Koolhydraat-mix efficiëntie"],
-        "doelen": ["Gran fondo tempo", "Lange solo's", "Specifieke race pace"],
-        "voorbeelden": ["2x20 min tempo", "Lange klim steady"],
-        "takeaway": "VT1 & VT2 zijn je fysiologische ankers voor zones.",
-        "color": "rgba(249, 115, 22, 0.2)", # Orange
-        "stroke": "#ea580c"
-    },
-    "Zone 3": {
-        "title": "ZONE 3 (HIGH)",
-        "subtitle": "Boven VT2 - Maximale Ademarbeid",
-        "theory": "Boven de tweede ventilatoire drempel. Ademhaling gaat maximaal. 'Steady' rijden wordt onmogelijk; dit is werk met een hoge herstelvraag.",
-        "bullets": [
-            "Hard werk hard genoeg maken",
-            "Werken tegen het aerobe plafond",
-            "Maximale ventilatoire druk"
-        ],
-        "prikkels": ["VO2max prikkel", "Lactaat tolerantie", "Top-end vermogen"],
-        "doelen": ["Klimvermogen (3-8 min)", "Gaten dichten / attacks", "FTP verhogen"],
-        "voorbeelden": ["4x4 Norway intervallen", "30/30's"],
-        "takeaway": "Meting via ademvariabelen (VE, Rf) is de gouden standaard.",
-        "color": "rgba(239, 68, 68, 0.2)", # Red
-        "stroke": "#dc2626"
-    }
-}
+knowledge_base = load_all_knowledge()
 
-# 5-Zone Model Data
-ZONES_5 = {
-    "Zone 1": {
-        "title": "ZONE 1",
-        "subtitle": "Herstel (Ver onder VT1)",
-        "theory": "Heel rustig trappen. Praattempo: moeiteloos praten. Ademhaling blijft laag en stabiel.",
-        "bullets": ["Easy écht easy houden", "Ondersteunend, niet het hele plan"],
-        "prikkels": ["Herstelcapaciteit (doorbloeding)", "Techniek/cadans zonder stress", "Basisvolume"],
-        "doelen": ["Sneller herstellen", "Volume zonder vermoeidheid", "Consistentie"],
-        "voorbeelden": ["30-60 min herstelrit", "Spin na intervaldag"],
-        "takeaway": "Z1 is ondersteunend voor de rest van je plan.",
-        "color": "rgba(16, 185, 129, 0.2)", # Emerald
-        "stroke": "#059669"
-    },
-    "Zone 2": {
-        "title": "ZONE 2",
-        "subtitle": "Aerobe Basis (Kalibreren met VT1)",
-        "theory": "Rustig tot steady. Je voelt dat je 'werkt'. Zit onder of rond VT1: hoogste intensiteit die je lang kunt stapelen.",
-        "bullets": ["Hoogste aerobe efficiëntie", "Zelfde watt = minder ademdruk over tijd"],
-        "prikkels": ["Aerobe capaciteit", "Aerobe efficiëntie", "Vet+koolhydraatmix"],
-        "doelen": ["Uithoudingsvermogen", "Basis voor intensief werk", "Betere pacing"],
-        "voorbeelden": ["90-240 min duurrit", "2-3 uur basis"],
-        "takeaway": "VT1 is het anker waarmee je Z2 goed kalibreert.",
-        "color": "rgba(20, 184, 166, 0.2)", # Teal
-        "stroke": "#0d9488"
-    },
-    "Zone 3": {
-        "title": "ZONE 3",
-        "subtitle": "Tempo (Comfortabel Zwaar)",
-        "theory": "Stevig. Korte zinnen lukken nét. Je krijgt sneller 'drift' (zelfde watt = hogere ademdruk/HR).",
-        "bullets": ["Valkuil: te vaak 'grijs' rijden", "Dieselvermogen trainen"],
-        "prikkels": ["Tempo-uithoudingsvermogen", "Race-gevoel", "Mentale tolerantie"],
-        "doelen": ["Gran fondo / lange solo's", "Specifieke race pace"],
-        "voorbeelden": ["3x15 min tempo", "Lange klim steady"],
-        "takeaway": "Voorkom dat Z3 je standaardrit wordt.",
-        "color": "rgba(245, 158, 11, 0.2)", # Amber
-        "stroke": "#d97706"
-    },
-    "Zone 4": {
-        "title": "ZONE 4",
-        "subtitle": "Threshold (Rond VT2)",
-        "theory": "Hard, nauwelijks praten. Ademdruk is hoog, tempo 'managen'. Duidelijke herstelvraag.",
-        "bullets": ["Drempelvermogen verhogen", "Tolerantie voor hoge ventilatie"],
-        "prikkels": ["Drempelvermogen", "Pacingvaardigheid", "Ademrespons training"],
-        "doelen": ["Sneller op 20-60 min inspanningen", "Tijdrit / breakaway"],
-        "voorbeelden": ["3x10 min threshold", "Over/unders"],
-        "takeaway": "Wattage + ademrespons is hier betrouwbaarder dan HR.",
-        "color": "rgba(249, 115, 22, 0.2)", # Orange
-        "stroke": "#ea580c"
-    },
-    "Zone 5": {
-        "title": "ZONE 5",
-        "subtitle": "VO2 Max (Boven VT2)",
-        "theory": "Zeer hard. Praten onmogelijk. Ventilatie gaat maximaal. Tijd doorbrengen tegen aerobe plafond.",
-        "bullets": ["Kort & scherp", "Vraagt veel herstel"],
-        "prikkels": ["VO2max-prikkel", "Top-end verbetering", "Herstel tussen pieken"],
-        "doelen": ["Klimvermogen verbeteren", "Attacks / gaten dichten"],
-        "voorbeelden": ["4x4 Norway", "5x3 min intervallen"],
-        "takeaway": "Werkt best met veel Z1-Z2 eromheen.",
-        "color": "rgba(239, 68, 68, 0.2)", # Red
-        "stroke": "#dc2626"
-    }
-}
+# --- 4. AI INSTRUCTIES ----------------------------------------------------
+SYSTEM_PROMPT = f"""
+ROL: Je bent een expert sportfysioloog van SportMetrics.
 
-# -----------------------------------------------------------------------------
-# 3. INTERFACE LOGICA
-# -----------------------------------------------------------------------------
+BRONMATERIAAL:
+Je hebt toegang tot specifieke literatuur over trainingsleer (zie hieronder).
+Gebruik DEZE INFORMATIE als de absolute waarheid.
 
-# Header
-st.markdown("<h1 style='text-align: center;'>Master je <span style='color: #dc2626; font-style: italic;'>Intensiteit.</span></h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #64748b; font-size: 1.1rem;'>Focus op ventilatoire ankers VT1 & VT2.</p>", unsafe_allow_html=True)
+=== START LITERATUUR ===
+{knowledge_base}
+=== EINDE LITERATUUR ===
 
-# Model Selectie
-col_m1, col_m2, col_m3 = st.columns([1,2,1])
-with col_m2:
-    model_choice = st.radio("Kies je model:", ["5-Zone Model", "3-Zone Model"], horizontal=True, label_visibility="collapsed")
+BELANGRIJKE REGELS:
+1. SportMetrics doet GEEN lactaatmetingen (prikken), alleen ademgasanalyse.
+2. Gebruik de principes (zoals Seiler zones) zoals beschreven in de geüploade literatuur.
+3. Wees praktisch, enthousiast en gebruik bulletpoints.
+4. Geen medisch advies.
+5. Geef altijd een props aan de persoon voor de test en bedankt dat hij of zij dit bij SportMetrics heeft gedaan.
+"""
 
-# Bepaal actieve dataset
-active_zones = ZONES_3 if model_choice == "3-Zone Model" else ZONES_5
+try:
+    model = genai.GenerativeModel(
+        model_name="gemini-2.5-flash",
+        system_instruction=SYSTEM_PROMPT,
+    )
+except Exception as e:
+    st.error(f"Model fout: {e}")
 
-# Layout: Links Grafiek, Rechts Info
-col_graph, col_sidebar = st.columns([2, 1])
-
-# --- GRAFIEK (Plotly) ---
-with col_graph:
-    with st.container():
-        st.markdown(f"### 🌬️ Ventilatoire Respons ({model_choice})")
-        
-        # Genereer curve data (Exponentiële stijging voor ventilatie)
-        x = np.linspace(0, 100, 200)
-        y = 15 + 0.001 * np.power(x, 2.5) # Simuleert VE curve
-
-        fig = go.Figure()
-
-        # Zones inkleuren
-        if model_choice == "3-Zone Model":
-            # Zone 1 (0 tot VT1)
-            fig.add_trace(go.Scatter(x=x[x<=VT1_X], y=y[x<=VT1_X], fill='tozeroy', mode='none', fillcolor='rgba(16, 185, 129, 0.2)', name='ZONE 1'))
-            # Zone 2 (VT1 tot VT2)
-            mask_z2 = (x >= VT1_X) & (x <= VT2_X)
-            fig.add_trace(go.Scatter(x=x[mask_z2], y=y[mask_z2], fill='tozeroy', mode='none', fillcolor='rgba(249, 115, 22, 0.2)', name='ZONE 2'))
-            # Zone 3 (VT2 tot 100)
-            fig.add_trace(go.Scatter(x=x[x>=VT2_X], y=y[x>=VT2_X], fill='tozeroy', mode='none', fillcolor='rgba(239, 68, 68, 0.2)', name='ZONE 3'))
+# --- 5. HERO --------------------------------------------------------------
+hero = st.container()
+with hero:
+    col1, col2 = st.columns([1.7, 1.1])
+    with col1:
+        st.markdown("<span class='badge'>SportMetrics AI Coach</span>", unsafe_allow_html=True)
+        st.markdown("<h1>🚴‍♂️ Jouw Wieler & Hardloop Expert</h1>", unsafe_allow_html=True)
+        st.markdown("""
+        Geef direct trainingsadvies op basis van je eigen rapporten en de beste literatuur.
+        Upload je testresultaten of stel je vraag, wij vertalen het naar heldere zones en acties.
+        """)
+        st.write("‣ Praktisch en to-the-point · ‣ Seiler zones · ‣ Geen medisch advies · ‣ Altijd props voor jouw effort")
+    with col2:
+        if os.path.exists(LOGO_PATH):
+            st.image(LOGO_PATH, width=260)
         else:
-            # 5 Zones (geschatte verdeling rondom VT1/VT2)
-            # Z1 + Z2 eindigen bij VT1. Z3 + Z4 eindigen bij VT2.
-            # Z1
-            fig.add_trace(go.Scatter(x=x[x<=30], y=y[x<=30], fill='tozeroy', mode='none', fillcolor='rgba(16, 185, 129, 0.2)', name='Z1'))
-            # Z2
-            mask_z2 = (x >= 30) & (x <= VT1_X)
-            fig.add_trace(go.Scatter(x=x[mask_z2], y=y[mask_z2], fill='tozeroy', mode='none', fillcolor='rgba(20, 184, 166, 0.2)', name='Z2'))
-            # Z3
-            mask_z3 = (x >= VT1_X) & (x <= 65)
-            fig.add_trace(go.Scatter(x=x[mask_z3], y=y[mask_z3], fill='tozeroy', mode='none', fillcolor='rgba(245, 158, 11, 0.2)', name='Z3'))
-            # Z4
-            mask_z4 = (x >= 65) & (x <= VT2_X)
-            fig.add_trace(go.Scatter(x=x[mask_z4], y=y[mask_z4], fill='tozeroy', mode='none', fillcolor='rgba(249, 115, 22, 0.2)', name='Z4'))
-            # Z5
-            fig.add_trace(go.Scatter(x=x[x>=VT2_X], y=y[x>=VT2_X], fill='tozeroy', mode='none', fillcolor='rgba(239, 68, 68, 0.2)', name='Z5'))
+            st.info("Upload je logo als '1.png' in dezelfde map om het hier te tonen.")
 
-        # De hoofdlijn
-        fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line=dict(color='#1e293b', width=4), name='Ademvolume (VE)'))
+# --- 6. UPLOAD ------------------------------------------------------------
+upload_card = st.container()
+with upload_card:
+    st.markdown("<div class='upload-card'>", unsafe_allow_html=True)
+    col_u1, col_u2 = st.columns([1.4, 1])
+    with col_u1:
+        st.subheader("📄 Upload je rapport")
+        st.caption("PDF of DOCX, alles blijft lokaal.")
+        uploaded_file = st.file_uploader("Kies je testresultaten", type=["pdf", "docx"], label_visibility="collapsed")
+    with col_u2:
+        st.markdown("<div class='cta-btn'>", unsafe_allow_html=True)
+        st.button("🚀 Start analyse", use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+        st.caption("Tip: vraag 'Maak mijn zones' voor een kort overzicht.")
+    st.markdown("</div>", unsafe_allow_html=True)
 
-        # Verticale lijnen voor VT1 en VT2
-        fig.add_vline(x=VT1_X, line_width=2, line_dash="dash", line_color="#94a3b8", annotation_text="VT1 (Ademarbeid stijgt)", annotation_position="top left")
-        fig.add_vline(x=VT2_X, line_width=2, line_dash="dash", line_color="#94a3b8", annotation_text="VT2 (Steady wordt lastig)", annotation_position="top left")
+if uploaded_file is not None:
+    try:
+        client_pdf_text = ""
+        if uploaded_file.name.lower().endswith(".pdf"):
+            reader = pypdf.PdfReader(uploaded_file)
+            for page in reader.pages:
+                client_pdf_text += page.extract_text() + "\n"
+        elif uploaded_file.name.lower().endswith(".docx"):
+            doc = docx.Document(uploaded_file)
+            for para in doc.paragraphs:
+                client_pdf_text += para.text + "\n"
+        st.session_state["last_uploaded_text"] = client_pdf_text
+        st.toast("Rapport ontvangen! Typ je vraag beneden.", icon="✅")
+    except Exception as e:
+        st.error(f"Fout bij lezen rapport: {e}")
 
-        # Layout cleanup
-        fig.update_layout(
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            xaxis=dict(showgrid=False, showticklabels=False, title="Intensiteit (%)"),
-            yaxis=dict(showgrid=False, showticklabels=False, title="Ventilatie"),
-            margin=dict(l=0, r=0, t=30, b=0),
-            showlegend=False,
-            height=350,
-            hovermode="x unified"
-        )
+# --- 7. CHAT HISTORY ------------------------------------------------------
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+    intro = (
+        "Hoi! Ik geef antwoord op basis van mijn AI-kennis en de best beschikbare literatuur over trainingsleer.\n\n"
+        "Upload je testresultaten of stel direct een vraag!"
+    )
+    st.session_state.messages.append({"role": "assistant", "content": intro})
 
-        st.plotly_chart(fig, use_container_width=True)
+chat_box = st.container()
+with chat_box:
+    st.markdown("<div class='chat-card'>", unsafe_allow_html=True)
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+    st.markdown("</div>", unsafe_allow_html=True)
 
-# --- SIDEBAR INFO ---
-with col_sidebar:
-    st.markdown("""
-    <div class="theory-card">
-        <h3 style="color:white; margin-top:0;">WAAROM ZONES?</h3>
-        <p style="color:#94a3b8; font-size: 0.9rem;">Doseren op fysiologie, niet op gevoel.</p>
-        <hr style="border-color: #334155;">
-        <div style="font-size: 0.85rem; line-height: 1.6;">
-            <p>✅ Easy écht easy houden, hard écht hard.</p>
-            <p>✅ Koppel zones aan Watt + context (Adem/RPE).</p>
-            <p style="color: #f87171; font-weight: bold;">❤️ VT1 & VT2 zijn exactere ankers dan % HRmax.</p>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+# --- 8. CHAT INPUT --------------------------------------------------------
+prompt = st.chat_input("Stel je vraag of zeg 'Maak mijn zones'...")
 
-st.markdown("---")
+if prompt:
+    extra_context = ""
+    if "last_uploaded_text" in st.session_state:
+        extra_context = f"\n\nHIER IS HET RAPPORT VAN DE KLANT:\n{st.session_state['last_uploaded_text']}\n\n"
+        del st.session_state["last_uploaded_text"]
 
-# -----------------------------------------------------------------------------
-# 4. ZONE DETAILS (Interactief)
-# -----------------------------------------------------------------------------
+    full_prompt_for_ai = prompt + extra_context
 
-# Knoppen voor zones
-zone_keys = list(active_zones.keys())
-cols = st.columns(len(zone_keys))
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
 
-# We gebruiken session state om de selectie te onthouden
-if 'selected_zone' not in st.session_state:
-    st.session_state.selected_zone = zone_keys[0]
-
-# Reset selectie als model verandert
-if st.session_state.selected_zone not in active_zones:
-    st.session_state.selected_zone = zone_keys[0]
-
-def set_zone(z):
-    st.session_state.selected_zone = z
-
-for i, col in enumerate(cols):
-    z_key = zone_keys[i]
-    if col.button(z_key, use_container_width=True, key=f"btn_{z_key}"):
-        set_zone(z_key)
-
-# Huidige data ophalen
-curr = active_zones[st.session_state.selected_zone]
-
-# Details tonen
-st.markdown(f"<div style='height: 20px;'></div>", unsafe_allow_html=True) # Spacer
-
-c_detail_L, c_detail_R = st.columns([1.5, 1])
-
-with c_detail_L:
-    st.markdown(f"""
-    <div class="custom-card" style="border-top: 5px solid {curr['stroke']};">
-        <h1 style="color: {curr['stroke']}; margin-bottom: 0;">{curr['title']}</h1>
-        <p style="font-weight: bold; color: #64748b; letter-spacing: 1px; text-transform: uppercase;">{curr['subtitle']}</p>
-        
-        <h4 style="margin-top: 1.5rem; display:flex; align-items:center; gap:8px;">📖 Theorie</h4>
-        <p style="font-size: 1.1rem; line-height: 1.6; color: #334155;">{curr['theory']}</p>
-        
-        <ul>
-            {"".join([f"<li style='color: #475569; margin-bottom: 4px;'>{b}</li>" for b in curr['bullets']])}
-        </ul>
-
-        <div class="takeaway-box">
-            💡 GOUDEN TAKEAWAY: {curr['takeaway']}
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-with c_detail_R:
-    st.markdown(f"""
-    <div class="custom-card">
-        <h4 style="margin-top:0; color: #64748b;">⚡ Prikkels</h4>
-        <ul style="margin-bottom: 1.5rem;">
-            {"".join([f"<li>{p}</li>" for p in curr['prikkels']])}
-        </ul>
-
-        <h4 style="margin-top:0; color: #64748b;">🎯 Doelen</h4>
-        <ul style="margin-bottom: 1.5rem;">
-            {"".join([f"<li>{d}</li>" for d in curr['doelen']])}
-        </ul>
-
-        <h4 style="margin-top:0; color: #64748b;">🚴 Voorbeelden</h4>
-        <ul>
-            {"".join([f"<li style='font-style: italic;'>{v}</li>" for v in curr['voorbeelden']])}
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
-
-# Footer
-st.markdown("<div style='text-align: center; color: #cbd5e1; margin-top: 3rem; font-size: 0.8rem;'>VT1 & VT2 — De Ankers van jouw Succes</div>", unsafe_allow_html=True)
+    try:
+        with st.chat_message("assistant"):
+            bike_placeholder = st.empty()
+            bike_placeholder.markdown(
+                """
+                <div class="bike-loader">
+                  <div>🚴‍♀️</div><div>🚴‍♂️</div><div>🚴‍♀️</div>
+                </div>
+                <p style="color:var(--muted); margin-top:2px;">Antwoord wordt geladen...</p>
+                """,
+                unsafe_allow_html=True,
+            )
+            with st.spinner("🚴‍♂️🚴‍♀️ bezig met jouw advies..."):
+                response = model.generate_content(full_prompt_for_ai)
+            bike_placeholder.markdown(response.text)
+            st.session_state.messages.append({"role": "assistant", "content": response.text})
+    except Exception as e:
+        st.error(f"De AI reageert niet: {e}")
