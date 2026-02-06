@@ -57,12 +57,13 @@ HTML_PAGE = r"""
       position: fixed;
       inset: 0;
       background-image: url('{{LOGO_DATA_URI}}');
-      background-repeat: no-repeat;
+      background-repeat: repeat;
       background-position: center;
-      background-size: min(55vmin, 520px);
-      opacity: 0.06;
+      background-size: 240px;
+      opacity: 0.05;
+      mix-blend-mode: multiply;
       pointer-events: none;
-      z-index: 0;
+      z-index: 2;
     }
 
     .bg-shape {
@@ -89,7 +90,7 @@ HTML_PAGE = r"""
       border-radius: 16px;
       padding: 14px 14px;
       box-shadow: var(--shadow);
-      z-index: 3;
+      z-index: 4;
       max-width: 190px;
     }
     nav h4 {
@@ -132,7 +133,7 @@ HTML_PAGE = r"""
 
     main {
       position: relative;
-      z-index: 1;
+      z-index: 3;
       max-width: 1100px;
       margin: 0 auto;
       padding: 64px 24px 120px;
